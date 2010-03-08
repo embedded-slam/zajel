@@ -82,7 +82,7 @@
     sourceComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->sourceComponentID];\
     sourceThread_ptr    =  &(controlBlock_ptr)->threadInformationArray[sourceComponent_ptr->parameters.threadID];\
                                                                                                    \
-    sourceThread_ptr->blockCallerThreadCallback(sourceThread_ptr->blockCallerThreadCallbackArgument);\
+    sourceThread_ptr->blockCallback(sourceThread_ptr->synchronizationPrimitive_ptr);               \
 }
 
 /***************************************************************************************************
@@ -224,27 +224,36 @@ typedef union zajel_component_information
 typedef struct zajel_thread_information
 {
     /*Core identifier on which this thread runs*/
-    uint32_t                                coreID;
+    uint32_t                        coreID;
     /*This callback function is used to deliver the messages to the thread*/
-    zajel_thread_handle_message_callback    handleMessageCallback;
+    zajel_handle_message_callback   handleMessageCallback;
     /*
      * This can be any synchronization primitive passed by the framework to the blockFunction in order
      * to support synchronous messages
      */
-    void*                                   blockCallerThreadCallbackArgument;
+    void*                           synchronizationPrimitive_ptr;
     /*
-     * This function will be called by the framework with the blockData as argument to block the
-     * sender thread until the received thread finishes.
+     * This function will be called by the framework after sending synchronous messages, and it will
+     * block the sending thread until the receiving thread finishes.
+     *
+     * It is not applicable for "same thread" synchronous message.
      */
-    zajel_thread_block_caller_callback      blockCallerThreadCallback;
+    zajel_block_callback            blockCallback;
+    /*
+     * This function will be called by the receiving thread of synchronous message to unblock the
+     * sending thread.
+     *
+     * It is not applicable for "same thread" synchronous message.
+     */
+    zajel_unblock_callback          unblockCallback;
 
 #ifdef DEBUG
     /*TRUE if the thread is registered*/
-    bool_t                                  isRegistered;
+    bool_t                          isRegistered;
     /*Thread identifier, this is meant to be user-assigned rather than the OS-assigned*/
-    uint32_t                                threadID;
+    uint32_t                        threadID;
     /*Thread textual name, to be used for debugging*/
-    char*                                   threadName_ptr;
+    char*                           threadName_ptr;
 #endif /*DEBUG*/
 } zajel_thread_information_s;
 
@@ -539,13 +548,14 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
 #endif /*DEBUG*/
 }
 
-void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
-                           uint32_t                             threadID,
-                           uint32_t                             coreID,
-                           zajel_thread_handle_message_callback handleMessageCallback,
-                           zajel_thread_block_caller_callback   blockCallerCallback,
-                           void*                                blockCallerCallbackArgument,
-                           char*                                threadName_Ptr COMMA()
+void zajel_regsiter_thread(zajel_s*                         zajel_ptr,
+                           uint32_t                         threadID,
+                           uint32_t                         coreID,
+                           zajel_handle_message_callback    handleMessageCallback,
+                           zajel_block_callback             blockCallback,
+                           zajel_unblock_callback           unblockCallback,
+                           void*                            synchronizationPrimitive_ptr,
+                           char*                            threadName_Ptr COMMA()
                            FILE_AND_LINE_FOR_TYPE())
 {
     /*
@@ -579,16 +589,21 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
            "zajel: handleMessageCallback cannot be NULL!",
            fileName,
            lineNumber);
-    ASSERT((NULL != blockCallerCallback),
-           "zajel: blockCallerCallback cannot be NULL!",
+    ASSERT((NULL != blockCallback),
+           "zajel: blockCallback cannot be NULL!",
+           fileName,
+           lineNumber);
+    ASSERT((NULL != unblockCallback),
+           "zajel: unblockCallback cannot be NULL!",
            fileName,
            lineNumber);
 
 
-    zajel_ptr->threadInformationArray[threadID].coreID                              = coreID;
-    zajel_ptr->threadInformationArray[threadID].handleMessageCallback               = handleMessageCallback;
-    zajel_ptr->threadInformationArray[threadID].blockCallerThreadCallback           = blockCallerCallback;
-    zajel_ptr->threadInformationArray[threadID].blockCallerThreadCallbackArgument   = blockCallerCallbackArgument;
+    zajel_ptr->threadInformationArray[threadID].coreID                          = coreID;
+    zajel_ptr->threadInformationArray[threadID].handleMessageCallback           = handleMessageCallback;
+    zajel_ptr->threadInformationArray[threadID].blockCallback                   = blockCallback;
+    zajel_ptr->threadInformationArray[threadID].unblockCallback                 = unblockCallback;
+    zajel_ptr->threadInformationArray[threadID].synchronizationPrimitive_ptr    = synchronizationPrimitive_ptr;
 
 #ifdef DEBUG
     zajel_ptr->threadInformationArray[threadID].threadName_ptr      = threadName_Ptr;
