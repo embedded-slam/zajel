@@ -163,13 +163,19 @@ typedef void (*unlock_function)();
 typedef void (*zajel_message_handler_function) (zajel_message_descriptor_s*);
 
 /*
- * A callback function when called, shall block the calling thread, and it is used for synchronous
+ * A callback function when called, shall block the sending (caller) thread, and it is used for
+ * synchronous message delivery.
+ */
+typedef void (*zajel_block_callback) (void*);
+
+/*
+ * A callback function when called, shall unblock the receiving thread, and it is used for synchronous
  * message delivery.
  */
-typedef void (*zajel_thread_block_caller_callback) (void*);
+typedef void (*zajel_unblock_callback) (void*);
 
 /*Called by the framework so that the receiver thread handle the given message*/
-typedef void (*zajel_thread_handle_message_callback) (zajel_message_descriptor_s*);
+typedef void (*zajel_handle_message_callback) (zajel_message_descriptor_s*);
 
 /*Called by the framework so that the receiver core handle the given message*/
 typedef void (*zajel_core_handle_message_callback) (zajel_message_descriptor_s*);
@@ -250,26 +256,28 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
 /***************************************************************************************************
  *  Name        : zajel_regsiter_thread
  *
- *  Arguments   : zajel_s*                             zajel_ptr,
- *                uint32_t                             threadID,
- *                uint32_t                             coreID,
- *                zajel_thread_handle_message_callback handleMessageCallback,
- *                zajel_thread_block_caller_callback   blockCallerThreadCallback,
- *                void*                                blockCallerCallbackArgument,
- *                char*                                threadName_Ptr COMMA()
+ *  Arguments   : zajel_s*                         zajel_ptr,
+ *                uint32_t                         threadID,
+ *                uint32_t                         coreID,
+ *                zajel_handle_message_callback    handleMessageCallback,
+ *                zajel_block_callback             blockCallback,
+ *                zajel_unblock_callback           unblockCallback,
+ *                void*                            synchronizationPrimitive_ptr,
+ *                char*                            threadName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
  *  Description : This function register a thread to zajel framework.
  *
  *  Returns     : void.
  **************************************************************************************************/
-void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
-                           uint32_t                             threadID,
-                           uint32_t                             coreID,
-                           zajel_thread_handle_message_callback handleMessageCallback,
-                           zajel_thread_block_caller_callback   blockCallerCallback,
-                           void*                                blockCallerCallbackArgument,
-                           char*                                threadName_Ptr COMMA()
+void zajel_regsiter_thread(zajel_s*                         zajel_ptr,
+                           uint32_t                         threadID,
+                           uint32_t                         coreID,
+                           zajel_handle_message_callback    handleMessageCallback,
+                           zajel_block_callback             blockCallback,
+                           zajel_unblock_callback           unblockCallback,
+                           void*                            synchronizationPrimitive_ptr,
+                           char*                            threadName_Ptr COMMA()
                            FILE_AND_LINE_FOR_TYPE());
 
 /***************************************************************************************************
