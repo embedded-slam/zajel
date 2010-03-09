@@ -35,6 +35,7 @@
  *
  **************************************************************************************************/
 #include <stddef.h>
+#include <stdio.h>
 #include "zajel.h"
 
 /***************************************************************************************************
@@ -42,13 +43,16 @@
  *  M A C R O S
  *
  **************************************************************************************************/
-/*
- * TODO: mgalal on Mar 6, 2010
- *
- * To be removed, debug is only defined temporarily to simplify development.
- */
-#define DEBUG 1
 
+
+/*Total number of messages*/
+#define ZAJEL_MESSAGE_COUNT     (100)
+/*Total number of components*/
+#define ZAJEL_COMPONENT_COUNT   (10)
+/*Total number of threads*/
+#define ZAJEL_THREAD_COUNT      (4)
+/*Total number of cores*/
+#define ZAJEL_CORE_COUNT        (2)
 
 /***************************************************************************************************
  *  Macro Name  : ZAJEL_IS_ITEM_REGISTERED
@@ -96,7 +100,7 @@ typedef struct zajel_message_information
     zajel_message_handler_function  messageHandlerFunction;
 #ifdef DEBUG
     /*TRUE if the message is registered*/
-    bool_t  isRegistered;
+    bool_t                          isRegistered;
     /*Message identifier*/
     uint32_t                        messageID;
     /*Textual representation of the message, for debugging purposes*/
@@ -205,26 +209,17 @@ typedef struct zajel_core_information
  **************************************************************************************************/
 struct zajel
 {
-    /*Number of messages the framework will handle*/
-    uint32_t                                    messageCount;
-    /*Number of components the framework will handle*/
-    uint32_t                                    componentCount;
-    /*Number of threads the framework will handle*/
-    uint32_t                                    threadCount;
-    /*Number of cores the framework will handle*/
-    uint32_t                                    coreCount;
     /*An array that holds the registered message handlers*/
-    zajel_message_information_s*                messageInformationArray_ptr;
+    zajel_message_information_s     messageInformationArray[ZAJEL_MESSAGE_COUNT];
     /*An array that holds the component related information like the component ID, thread/core ID*/
-    zajel_component_information_u*              componentInformationArray_ptr;
+    zajel_component_information_u   componentInformationArray[ZAJEL_COMPONENT_COUNT];
     /*An array that holds the thread related information*/
-    zajel_thread_information_s*                 threadInformationArray_ptr;
+    zajel_thread_information_s      threadInformationArray[ZAJEL_THREAD_COUNT];
     /*An array that holds the core related information*/
-    zajel_core_information_s*                   coreInformationArray_ptr;
+    zajel_core_information_s        coreInformationArray[ZAJEL_CORE_COUNT];
     /*The deallocation function pointer to be used when destroying the control block*/
-    deallocation_function                       deallocationFunction_ptr;
+    zajel_deallocation_function     deallocationFunction_ptr;
 };
-
 
 /***************************************************************************************************
  *
@@ -255,23 +250,17 @@ zajel_component_dynamic_relation_e zajel_get_component_dynamic_relation(uint32_t
  **************************************************************************************************/
 
 
-zajel_status_e zajel_init(zajel_s**             zajelPointer_ptr,
-                          uint32_t              messageCount,
-                          uint32_t              componentCount,
-                          uint32_t              threadCount,
-                          uint32_t              coreCount,
-                          allocation_function   allocationFunction_ptr,
-                          deallocation_function deallocationFunction_ptr COMMA()
-                          FILE_AND_LINE_FOR_TYPE())
+void zajel_init(zajel_s**                     zajelPointer_ptr,
+                allocation_function           allocationFunction_ptr,
+                zajel_deallocation_function   deallocationFunction_ptr COMMA()
+                FILE_AND_LINE_FOR_TYPE())
 {
     /*Temporarily holds the allocated structure, just to avoid using the multiple indirection frequently*/
     zajel_s* zajel_ptr;
     /*Status of the initialization*/
-    zajel_status_e status;
     /*Temporary counter*/
     uint32_t i;
 
-    status = ZAJEL_STATUS_SUCCESS;
     /*
      * This function is responsible for:
      ***********************************************************************************************
@@ -291,22 +280,27 @@ zajel_status_e zajel_init(zajel_s**             zajelPointer_ptr,
            "pointer (zajel_ptr), this might be a sign of double initialization using the same pointer!",
            fileName,
            lineNumber);
-    ASSERT((messageCount > 0),
+    ASSERT((ZAJEL_MESSAGE_COUNT > 0),
            "zajel: Message count must be greater than zero!",
            fileName,
            lineNumber);
-    ASSERT((componentCount > 0),
+    ASSERT((ZAJEL_COMPONENT_COUNT > 0),
            "zajel: Component count must be greater than zero!",
            fileName,
            lineNumber);
-    ASSERT((threadCount > 0),
+    ASSERT((ZAJEL_THREAD_COUNT > 0),
            "zajel: Thread count must be greater than zero!",
            fileName,
            lineNumber);
-    ASSERT((coreCount > 0),
+    ASSERT((ZAJEL_CORE_COUNT > 0),
            "zajel: Core count must be greater than zero!",
            fileName,
            lineNumber);
+    /*
+     * TODO: mgalal on Feb 27, 2010
+     *
+     * Add proper exception handling in this function, allocation failure, invalid parameters, etc...
+     */
 
     /* HINT: [PROGRAMMING]
      **********************************************************************************************
@@ -320,77 +314,41 @@ zajel_status_e zajel_init(zajel_s**             zajelPointer_ptr,
            "zajel: Failed to allocate a memory for the control block!",
            fileName,
            lineNumber);
-    /*
-     * TODO: mgalal on Feb 27, 2010
-     *
-     * Add proper exception handling in this function, allocation failure, invalid parameters, etc...
-     */
-    zajel_ptr->messageInformationArray_ptr = (zajel_message_information_s*)
-            allocationFunction_ptr(messageCount * sizeof(*zajel_ptr->messageInformationArray_ptr));
-    ASSERT((NULL != zajel_ptr->messageInformationArray_ptr),
-           "zajel: Failed to allocate storage for the message handler array!",
-           fileName,
-           lineNumber);
 
-    zajel_ptr->componentInformationArray_ptr = (zajel_component_information_u*)
-            allocationFunction_ptr(componentCount * sizeof(*zajel_ptr->componentInformationArray_ptr));
-    ASSERT((NULL != zajel_ptr->componentInformationArray_ptr),
-           "zajel: Failed to allocate storage for the component information array!",
-           fileName,
-           lineNumber);
-
-    zajel_ptr->threadInformationArray_ptr = (zajel_thread_information_s*)
-            allocationFunction_ptr(threadCount * sizeof(*zajel_ptr->threadInformationArray_ptr));
-    ASSERT((NULL != zajel_ptr->threadInformationArray_ptr),
-           "zajel: Failed to allocate storage for the thread information array!",
-           fileName,
-           lineNumber);
-
-    zajel_ptr->coreInformationArray_ptr = (zajel_core_information_s*)
-            allocationFunction_ptr(coreCount * sizeof(*zajel_ptr->coreInformationArray_ptr));
-    ASSERT((NULL != zajel_ptr->coreInformationArray_ptr),
-           "zajel: Failed to allocate storage for the core information array!",
-           fileName,
-           lineNumber);
 
 #ifdef DEBUG
-    for(i = 0; i < messageCount; ++i)
+    for(i = 0; i < ZAJEL_MESSAGE_COUNT; ++i)
     {
         /*<Reset all message handlers>*/
 
-        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->messageInformationArray_ptr[i]) = FALSE;
+        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->messageInformationArray[i]) = FALSE;
     } /*for: <Reset all message handlers>*/
 
-    for(i = 0; i < componentCount; ++i)
+    for(i = 0; i < ZAJEL_COMPONENT_COUNT; ++i)
     {
         /*<Reset all component information>*/
 
-        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->componentInformationArray_ptr[i].parameters) = FALSE;
+        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->componentInformationArray[i].parameters) = FALSE;
     } /*for: <Reset all component information>*/
 
-    for(i = 0; i < threadCount; ++i)
+    for(i = 0; i < ZAJEL_THREAD_COUNT; ++i)
     {
         /*<Reset all thread information>*/
-        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->threadInformationArray_ptr[i]) = FALSE;
+        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->threadInformationArray[i]) = FALSE;
     } /*for: <Reset all thread information>*/
 
-    for(i = 0; i < coreCount; ++i)
+    for(i = 0; i < ZAJEL_CORE_COUNT; ++i)
     {
         /*<Reset all core information>*/
 
-        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->coreInformationArray_ptr[i]) = FALSE;
+        ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->coreInformationArray[i]) = FALSE;
     } /*for: <Reset all core information>*/
 #endif /*DEBUG*/
 
-    zajel_ptr->messageCount             = messageCount;
-    zajel_ptr->componentCount           = componentCount;
-    zajel_ptr->threadCount              = threadCount;
     zajel_ptr->deallocationFunction_ptr = deallocationFunction_ptr;
 
     /*Copy the initialized pointer to the one pointed to the passed double pointer*/
     *zajelPointer_ptr = zajel_ptr;
-
-    return status;
 }
 
 void zajel_destroy(zajel_s** zajelPointer_ptr COMMA()
@@ -418,10 +376,6 @@ void zajel_destroy(zajel_s** zajelPointer_ptr COMMA()
 
     zajel_ptr = *zajelPointer_ptr;
 
-    zajel_ptr->deallocationFunction_ptr(zajel_ptr->messageInformationArray_ptr);
-    zajel_ptr->deallocationFunction_ptr(zajel_ptr->componentInformationArray_ptr);
-    zajel_ptr->deallocationFunction_ptr(zajel_ptr->threadInformationArray_ptr);
-    zajel_ptr->deallocationFunction_ptr(zajel_ptr->coreInformationArray_ptr);
     zajel_ptr->deallocationFunction_ptr(zajel_ptr);
 
     /*
@@ -448,7 +402,7 @@ void zajel_regsiter_message(zajel_s*                        zajel_ptr,
            "zajel: Invalid pointer to the control block!",
            fileName,
            lineNumber);
-    ASSERT((messageID < zajel_ptr->messageCount),
+    ASSERT((messageID < ZAJEL_MESSAGE_COUNT),
            "zajel: MessageID passed must be less than the total message count used during initialization!",
            fileName,
            lineNumber);
@@ -460,17 +414,17 @@ void zajel_regsiter_message(zajel_s*                        zajel_ptr,
            "zajel: Message name cannot be an empty string!",
            fileName,
            lineNumber);
-    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->messageInformationArray_ptr[messageID])),
+    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->messageInformationArray[messageID])),
            "zajel: Message is already registerd!",
            fileName,
            lineNumber);
 
 
-    zajel_ptr->messageInformationArray_ptr[messageID].messageHandlerFunction    = messageHandler_ptr;
+    zajel_ptr->messageInformationArray[messageID].messageHandlerFunction    = messageHandler_ptr;
 #ifdef DEBUG
-    zajel_ptr->messageInformationArray_ptr[messageID].messageName_ptr           = messageName_Ptr;
-    zajel_ptr->messageInformationArray_ptr[messageID].isRegistered              = TRUE;
-    zajel_ptr->messageInformationArray_ptr[messageID].messageID                 = messageID;
+    zajel_ptr->messageInformationArray[messageID].messageName_ptr           = messageName_Ptr;
+    zajel_ptr->messageInformationArray[messageID].isRegistered              = TRUE;
+    zajel_ptr->messageInformationArray[messageID].messageID                 = messageID;
 #endif /*DEBUG*/
 }
 
@@ -491,7 +445,7 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
            "zajel: Invalid pointer to the control block!",
            fileName,
            lineNumber);
-    ASSERT((componentID < zajel_ptr->componentCount),
+    ASSERT((componentID < ZAJEL_COMPONENT_COUNT),
            "zajel: componentID passed must be less than the total component count used during initialization!",
            fileName,
            lineNumber);
@@ -499,20 +453,20 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
            "zajel: Component name cannot be an empty string!",
            fileName,
            lineNumber);
-    ASSERT((TRUE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->threadInformationArray_ptr[threadID])),
+    ASSERT((TRUE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->threadInformationArray[threadID])),
            "zajel: Thread is not registered!",
            fileName,
            lineNumber);
-    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->componentInformationArray_ptr[componentID])),
+    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->componentInformationArray[componentID].parameters)),
            "zajel: Component is already registered!",
            fileName,
            lineNumber);
 
-    zajel_ptr->componentInformationArray_ptr[componentID].parameters.threadID           = threadID;
+    zajel_ptr->componentInformationArray[componentID].parameters.threadID           = threadID;
 #ifdef DEBUG
-    zajel_ptr->componentInformationArray_ptr[componentID].parameters.componentName_ptr  = componentName_Ptr;
-    zajel_ptr->componentInformationArray_ptr[componentID].parameters.isRegistered       = TRUE;
-    zajel_ptr->componentInformationArray_ptr[componentID].parameters.componentID        = componentID;
+    zajel_ptr->componentInformationArray[componentID].parameters.componentName_ptr  = componentName_Ptr;
+    zajel_ptr->componentInformationArray[componentID].parameters.isRegistered       = TRUE;
+    zajel_ptr->componentInformationArray[componentID].parameters.componentID        = componentID;
 #endif /*DEBUG*/
 }
 
@@ -535,7 +489,7 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
            "zajel: Invalid pointer to the control block!",
            fileName,
            lineNumber);
-    ASSERT((threadID < zajel_ptr->threadCount),
+    ASSERT((threadID < ZAJEL_THREAD_COUNT),
            "zajel: threadID passed must be less than the total thread count used during initialization!",
            fileName,
            lineNumber);
@@ -543,11 +497,11 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
            "zajel: thread name cannot be an empty string!",
            fileName,
            lineNumber);
-    ASSERT((TRUE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->coreInformationArray_ptr[coreID])),
+    ASSERT((TRUE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->coreInformationArray[coreID])),
            "zajel: core is not registered!",
            fileName,
            lineNumber);
-    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->threadInformationArray_ptr[threadID])),
+    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->threadInformationArray[threadID])),
            "zajel: thread is already registered!",
            fileName,
            lineNumber);
@@ -561,21 +515,19 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
            lineNumber);
 
 
-    zajel_ptr->threadInformationArray_ptr[threadID].coreID              = coreID;
-    zajel_ptr->threadInformationArray_ptr[threadID].blockingCallback    = blockingCallback;
-    zajel_ptr->threadInformationArray_ptr[threadID].nonblockingCallback = nonblockingCallback;
+    zajel_ptr->threadInformationArray[threadID].coreID              = coreID;
+    zajel_ptr->threadInformationArray[threadID].blockingCallback    = blockingCallback;
+    zajel_ptr->threadInformationArray[threadID].nonblockingCallback = nonblockingCallback;
 
 #ifdef DEBUG
-    zajel_ptr->threadInformationArray_ptr[threadID].threadName_ptr      = threadName_Ptr;
-    zajel_ptr->threadInformationArray_ptr[threadID].isRegistered        = TRUE;
-    zajel_ptr->threadInformationArray_ptr[threadID].threadID            = threadID;
+    zajel_ptr->threadInformationArray[threadID].threadName_ptr      = threadName_Ptr;
+    zajel_ptr->threadInformationArray[threadID].isRegistered        = TRUE;
+    zajel_ptr->threadInformationArray[threadID].threadID            = threadID;
 #endif /*DEBUG*/
 }
 
 void zajel_regsiter_core(zajel_s*                           zajel_ptr,
                          uint32_t                           coreID,
-                         zajel_core_blocking_callback       blockingCallback,
-                         zajel_core_non_blocking_callback   nonblockingCallback,
                          char*                              coreName_Ptr COMMA()
                          FILE_AND_LINE_FOR_TYPE())
 {
@@ -590,7 +542,7 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
            "zajel: Invalid pointer to the control block!",
            fileName,
            lineNumber);
-    ASSERT((coreID < zajel_ptr->coreCount),
+    ASSERT((coreID < ZAJEL_CORE_COUNT),
            "zajel: coreID passed must be less than the total core count used during initialization!",
            fileName,
            lineNumber);
@@ -598,26 +550,15 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
            "zajel: Core name cannot be an empty string!",
            fileName,
            lineNumber);
-    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->coreInformationArray_ptr[coreID])),
+    ASSERT((FALSE == ZAJEL_IS_ITEM_REGISTERED(zajel_ptr->coreInformationArray[coreID])),
            "zajel: Core is already registered!",
            fileName,
            lineNumber);
-    ASSERT((NULL != blockingCallback),
-           "zajel: blockingCallback cannot be NULL!",
-           fileName,
-           lineNumber);
-    ASSERT((NULL != nonblockingCallback),
-           "zajel: nonblockingCallback cannot be NULL!",
-           fileName,
-           lineNumber);
-
-    zajel_ptr->coreInformationArray_ptr[coreID].blockingCallback    = blockingCallback;
-    zajel_ptr->coreInformationArray_ptr[coreID].nonblockingCallback = nonblockingCallback;
 
 #ifdef DEBUG
-    zajel_ptr->coreInformationArray_ptr[coreID].coreName_ptr        = coreName_Ptr;
-    zajel_ptr->coreInformationArray_ptr[coreID].isRegistered        = TRUE;
-    zajel_ptr->coreInformationArray_ptr[coreID].coreID              = coreID;
+    zajel_ptr->coreInformationArray[coreID].coreName_ptr        = coreName_Ptr;
+    zajel_ptr->coreInformationArray[coreID].isRegistered        = TRUE;
+    zajel_ptr->coreInformationArray[coreID].coreID              = coreID;
 #endif /*DEBUG*/
 }
 
@@ -646,7 +587,7 @@ void zajel_send(zajel_s*                zajel_ptr,
                 /*<Checks the requested delivery type and act>*/
 
                 case ZAJEL_DELIVERY_TYPE_SYNCHRONOUS:
-                    /*<Sender will not proceed (blocked) until the receiver finishes>*/
+                    /*<Sender will not proceed (will be blocked) until the receiver finishes>*/
 
                     break;/*<Sender will not proceed (blocked) until the receiver finishes>*/
                 case ZAJEL_DELIVERY_TYPE_ASYNCHRONOUS:
@@ -682,12 +623,12 @@ void zajel_send(zajel_s*                zajel_ptr,
 }
 
 
-
 /***************************************************************************************************
  *
  *  I N T E R N A L   F U N C T I O N   D E F I N I T I O N S
  *
  **************************************************************************************************/
+
 
 zajel_component_dynamic_relation_e zajel_get_component_dynamic_relation(uint32_t sourceComponentID,
                                                                         uint32_t destinationComponentID)
