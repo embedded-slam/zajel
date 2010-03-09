@@ -336,7 +336,7 @@ void zajel_send(zajel_s*    zajel_ptr,
                 FILE_AND_LINE_FOR_TYPE());
 
 /***************************************************************************************************
- *  Name        : zajel_ack
+ *  Name        : zajel_acknowledge
  *
  *  Arguments   : zajel_s*  zajel_ptr,
  *                void*     message_ptr COMMA()
@@ -347,9 +347,9 @@ void zajel_send(zajel_s*    zajel_ptr,
  *
  *  Returns     : void.
  **************************************************************************************************/
-void zajel_ack(zajel_s* zajel_ptr,
-               void*    message_ptr COMMA()
-               FILE_AND_LINE_FOR_TYPE());
+void zajel_acknowledge(zajel_s* zajel_ptr,
+                       void*    message_ptr COMMA()
+                       FILE_AND_LINE_FOR_TYPE());
 
 /***************************************************************************************************
  *  Name        : zajel_deliver
