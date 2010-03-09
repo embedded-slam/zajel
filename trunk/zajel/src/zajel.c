@@ -70,23 +70,19 @@
  *
  *  Arguments   : controlBlock_ptr, desc_ptr
  *
- *  Description : This macro locks the calling thread if required by the message.
+ *  Description : This macro locks the calling thread.
  *
  *  Returns     : None.
  **************************************************************************************************/
 #define ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(controlBlock_ptr, desc_ptr)                           \
 {                                                                                                  \
-    if(descriptor_ptr->isSynchronous)                                                              \
-    {                                                                                              \
-        /*<Message is synchronous, framework will now block the calling thread>*/                  \
-        zajel_component_information_u*  sourceComponent_ptr;                                       \
-        zajel_thread_information_s*     sourceThread_ptr;                                          \
+    zajel_component_information_u*  sourceComponent_ptr;                                           \
+    zajel_thread_information_s*     sourceThread_ptr;                                              \
                                                                                                    \
-        sourceComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->sourceComponentID];\
-        sourceThread_ptr    =  &(controlBlock_ptr)->threadInformationArray[sourceComponent_ptr->parameters.threadID];\
+    sourceComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->sourceComponentID];\
+    sourceThread_ptr    =  &(controlBlock_ptr)->threadInformationArray[sourceComponent_ptr->parameters.threadID];\
                                                                                                    \
-        sourceThread_ptr->blockCallerThreadCallback(sourceThread_ptr->blockCallerThreadCallbackArgument);\
-    } /*if: <Message is synchronous, framework will now block the calling thread>*/                \
+    sourceThread_ptr->blockCallerThreadCallback(sourceThread_ptr->blockCallerThreadCallbackArgument);\
 }
 
 /***************************************************************************************************
@@ -709,8 +705,13 @@ void zajel_send(zajel_s*                zajel_ptr,
             ZAJEL_THREAD_HANDLE_MESSAGE(zajel_ptr,
                                         descriptor_ptr);
 
-            ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
-                                                 descriptor_ptr);
+            if(descriptor_ptr->isSynchronous)
+            {
+                /*<Message is synchronous, framework will now block the calling thread>*/
+                ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
+                                                     descriptor_ptr);
+            } /*if: <Message is synchronous, framework will now block the calling thread>*/
+
 
 
             break;/*<Both components are running in different threads, same core>*/
@@ -720,8 +721,12 @@ void zajel_send(zajel_s*                zajel_ptr,
             ZAJEL_CORE_HANDLE_MESSAGE(zajel_ptr,
                                       descriptor_ptr);
 
-            ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
-                                                 descriptor_ptr);
+            if(descriptor_ptr->isSynchronous)
+            {
+                /*<Message is synchronous, framework will now block the calling thread>*/
+                ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
+                                                     descriptor_ptr);
+            } /*if: <Message is synchronous, framework will now block the calling thread>*/
 
             break;/*<Both components are running in different threads, different cores>*/
         default:
