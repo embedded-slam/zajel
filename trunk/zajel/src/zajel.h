@@ -321,8 +321,8 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
 /***************************************************************************************************
  *  Name        : zajel_send
  *
- *  Arguments   : zajel_s*                zajel_ptr,
- *                void*                   message_ptr COMMA()
+ *  Arguments   : zajel_s*  zajel_ptr,
+ *                void*     message_ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
  *  Description : This function sends the given message to the registered handler, and it takes care
@@ -331,15 +331,15 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
  *
  *  Returns     : void.
  **************************************************************************************************/
-void zajel_send(zajel_s*                zajel_ptr,
-                void*                   message_ptr COMMA()
+void zajel_send(zajel_s*    zajel_ptr,
+                void*       message_ptr COMMA()
                 FILE_AND_LINE_FOR_TYPE());
 
 /***************************************************************************************************
  *  Name        : zajel_ack
  *
- *  Arguments   : zajel_s*                zajel_ptr,
- *                void*                   message_ptr COMMA()
+ *  Arguments   : zajel_s*  zajel_ptr,
+ *                void*     message_ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
  *  Description : This function is used by the receiver thread to acknowledge the reception of a
@@ -347,8 +347,25 @@ void zajel_send(zajel_s*                zajel_ptr,
  *
  *  Returns     : void.
  **************************************************************************************************/
-void zajel_ack(zajel_s*                zajel_ptr,
-               void*                   message_ptr COMMA()
+void zajel_ack(zajel_s* zajel_ptr,
+               void*    message_ptr COMMA()
                FILE_AND_LINE_FOR_TYPE());
+
+/***************************************************************************************************
+ *  Name        : zajel_deliver
+ *
+ *  Arguments   : zajel_s*  zajel_ptr,
+ *                void*     message_ptr COMMA()
+ *                FILE_AND_LINE_FOR_TYPE()
+ *
+ *  Description : This function is used by the receiver core to deliver the received message
+ *                  internally to one of the threads on the same core, or to unblock a thread on that
+ *                  core, which was blocked after sending synchronous message.
+ *
+ *  Returns     : void.
+ **************************************************************************************************/
+void zajel_deliver(zajel_s* zajel_ptr,
+                   void*    message_ptr COMMA()
+                   FILE_AND_LINE_FOR_TYPE());
 
 #endif /* ZAJEL_H_ */
