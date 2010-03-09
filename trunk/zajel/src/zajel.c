@@ -438,7 +438,7 @@ void zajel_init(zajel_s**                     zajelPointer_ptr,
 
     /*Copy the initialized pointer to the one pointed to the passed double pointer*/
     *zajelPointer_ptr = zajel_ptr;
-}
+} /*function: zajel_init*/
 
 void zajel_destroy(zajel_s** zajelPointer_ptr COMMA()
                    FILE_AND_LINE_FOR_TYPE())
@@ -472,7 +472,7 @@ void zajel_destroy(zajel_s** zajelPointer_ptr COMMA()
      * reset, this is done to protect against the accidental use of the pointer after destroying it.
      */
     *zajelPointer_ptr = NULL;
-}
+} /*function: zajel_destory*/
 
 void zajel_regsiter_message(zajel_s*                        zajel_ptr,
                             uint32_t                        messageID,
@@ -519,7 +519,7 @@ void zajel_regsiter_message(zajel_s*                        zajel_ptr,
     zajel_ptr->messageInformationArray[messageID].isRegistered              = TRUE;
     zajel_ptr->messageInformationArray[messageID].messageID                 = messageID;
 #endif /*DEBUG*/
-}
+} /*function: zajel_register_message*/
 
 void zajel_regsiter_component(zajel_s*  zajel_ptr,
                               uint32_t  componentID,
@@ -561,7 +561,7 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
     zajel_ptr->componentInformationArray[componentID].parameters.isRegistered       = TRUE;
     zajel_ptr->componentInformationArray[componentID].parameters.componentID        = componentID;
 #endif /*DEBUG*/
-}
+} /*function: zajel_register_component*/
 
 void zajel_regsiter_thread(zajel_s*                         zajel_ptr,
                            uint32_t                         threadID,
@@ -625,7 +625,7 @@ void zajel_regsiter_thread(zajel_s*                         zajel_ptr,
     zajel_ptr->threadInformationArray[threadID].isRegistered        = TRUE;
     zajel_ptr->threadInformationArray[threadID].threadID            = threadID;
 #endif /*DEBUG*/
-}
+} /*function: zajel_register_thread*/
 
 void zajel_regsiter_core(zajel_s*                           zajel_ptr,
                          uint32_t                           coreID,
@@ -669,7 +669,7 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
     zajel_ptr->coreInformationArray[coreID].isRegistered            = TRUE;
     zajel_ptr->coreInformationArray[coreID].coreID                  = coreID;
 #endif /*DEBUG*/
-}
+} /*function: zajel_register_core*/
 
 void zajel_send(zajel_s*    zajel_ptr,
                 void*       message_ptr COMMA()
@@ -772,11 +772,11 @@ void zajel_send(zajel_s*    zajel_ptr,
                    lineNumber);
             break;/*<Invalid dynamic relation>*/
     } /*switch: <This switch checks the dynamic relation between both components and act accordingly>*/
-}
+} /*function: zajel_send*/
 
-void zajel_ack(zajel_s*                zajel_ptr,
-               void*                   message_ptr COMMA()
-               FILE_AND_LINE_FOR_TYPE())
+void zajel_acknowledge(zajel_s*                zajel_ptr,
+                       void*                   message_ptr COMMA()
+                       FILE_AND_LINE_FOR_TYPE())
 {
     zajel_message_descriptor_s          ackDescriptor;
     zajel_message_descriptor_s*         descriptor_ptr;
@@ -875,7 +875,7 @@ void zajel_ack(zajel_s*                zajel_ptr,
                    lineNumber);
             break;/*<Invalid dynamic relation>*/
     } /*switch: <This switch checks the dynamic relation between both components and act accordingly>*/
-}
+} /*function: zajel_acknowledge*/
 
 void zajel_deliver(zajel_s* zajel_ptr,
                    void*    message_ptr COMMA()
@@ -967,7 +967,7 @@ void zajel_deliver(zajel_s* zajel_ptr,
                    lineNumber);
             break;/*<Invalid dynamic relation>*/
     } /*switch: <This switch checks the dynamic relation between both components and act accordingly>*/
-}
+} /*function: zajel_deliver*/
 
 
 /***************************************************************************************************
@@ -995,4 +995,5 @@ zajel_component_dynamic_relation_e zajel_get_component_dynamic_relation(zajel_s*
             (!decision.parameters.coreID)   ?   (ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_CORE) :
                                                 (ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_CORES));
 
-}
+} /*function: zajel_get_component_dynamic_relation*/
+/*function: */
