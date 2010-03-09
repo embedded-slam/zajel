@@ -37,6 +37,12 @@
  *  M A C R O S
  *
  **************************************************************************************************/
+/*
+ * TODO: mgalal on Mar 6, 2010
+ *
+ * To be removed, debug is only defined temporarily to simplify development.
+ */
+#define DEBUG 1
 
 
 #ifndef FALSE
@@ -111,7 +117,7 @@ typedef uint8_t bool_t;
 typedef void*(*allocation_function)(size_t bytesCount);
 
 /*Memory de-allocation function prototype*/
-typedef void (*deallocation_function)(void* ptr);
+typedef void (*zajel_deallocation_function)(void* ptr);
 
 /*Locking function prototype*/
 typedef void (*lock_function)();
@@ -181,26 +187,18 @@ typedef enum zajel_delivery_type
  *  Name        : zajel_init
  *
  *  Arguments   : zajel_s**             zajelPointer_ptr,
- *                uint32_t              messageCount,
- *                uint32_t              componentCount,
- *                uint32_t              threadCount,
- *                uint32_t              coreCount,
  *                allocation_function   allocationFunction_ptr,
- *                deallocation_function deallocationFunction_ptr COMMA()
+ *                zajel_deallocation_function deallocationFunction_ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
  *  Description : This function initializes the zajel framework.
  *
- *  Returns     : zajel_status_e.
+ *  Returns     : void.
  **************************************************************************************************/
-zajel_status_e zajel_init(zajel_s**             zajelPointer_ptr,
-                          uint32_t              messageCount,
-                          uint32_t              componentCount,
-                          uint32_t              threadCount,
-                          uint32_t              coreCount,
-                          allocation_function   allocationFunction_ptr,
-                          deallocation_function deallocationFunction_ptr COMMA()
-                          FILE_AND_LINE_FOR_TYPE());
+void zajel_init(zajel_s**                     zajelPointer_ptr,
+                allocation_function           allocationFunction_ptr,
+                zajel_deallocation_function   deallocationFunction_ptr COMMA()
+                FILE_AND_LINE_FOR_TYPE());
 
 /***************************************************************************************************
  *  Name        : zajel_destroy
@@ -224,7 +222,7 @@ void zajel_destroy(zajel_s** zajelPointer_ptr COMMA()
  *                char*                           messageName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
- *  Description : description.
+ *  Description : This function register a message to zajel framework.
  *
  *  Returns     : void.
  **************************************************************************************************/
@@ -233,6 +231,64 @@ void zajel_regsiter_message(zajel_s*                        zajel_ptr,
                             zajel_message_handler_function  messageHandler_ptr,
                             char*                           messageName_Ptr COMMA()
                             FILE_AND_LINE_FOR_TYPE());
+
+/***************************************************************************************************
+ *  Name        : zajel_regsiter_component
+ *
+ *  Arguments   : zajel_s*  zajel_ptr,
+ *                uint32_t  componentID,
+ *                uint32_t  threadID,
+ *                char*     componentName_Ptr COMMA()
+ *                FILE_AND_LINE_FOR_TYPE()
+ *
+ *  Description : This function register a component to zajel framework.
+ *
+ *  Returns     : void.
+ **************************************************************************************************/
+void zajel_regsiter_component(zajel_s*  zajel_ptr,
+                              uint32_t  componentID,
+                              uint32_t  threadID,
+                              char*     componentName_Ptr COMMA()
+                              FILE_AND_LINE_FOR_TYPE());
+/***************************************************************************************************
+ *  Name        : zajel_regsiter_thread
+ *
+ *  Arguments   : zajel_s*                             zajel_ptr,
+ *                uint32_t                             threadID,
+ *                uint32_t                             coreID,
+ *                zajel_thread_blocking_callback       blockingCallback,
+ *                zajel_thread_non_blocking_callback   nonblockingCallback,
+ *                char*                                threadName_Ptr COMMA()
+ *                FILE_AND_LINE_FOR_TYPE()
+ *
+ *  Description : This function register a thread to zajel framework.
+ *
+ *  Returns     : void.
+ **************************************************************************************************/
+void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
+                           uint32_t                             threadID,
+                           uint32_t                             coreID,
+                           zajel_thread_blocking_callback       blockingCallback,
+                           zajel_thread_non_blocking_callback   nonblockingCallback,
+                           char*                                threadName_Ptr COMMA()
+                           FILE_AND_LINE_FOR_TYPE());
+
+/***************************************************************************************************
+ *  Name        : zajel_regsiter_core
+ *
+ *  Arguments   : zajel_s*                           zajel_ptr,
+ *                uint32_t                           coreID,
+ *                char*                              coreName_Ptr COMMA()
+ *                FILE_AND_LINE_FOR_TYPE()
+ *
+ *  Description : This function register a core to zajel framework.
+ *
+ *  Returns     : void.
+ **************************************************************************************************/
+void zajel_regsiter_core(zajel_s*                           zajel_ptr,
+                         uint32_t                           coreID,
+                         char*                              coreName_Ptr COMMA()
+                         FILE_AND_LINE_FOR_TYPE());
 
 /*
  * TODO: mgalal on Mar 6, 2010
@@ -265,9 +321,5 @@ void zajel_send(zajel_s*                zajel_ptr,
                 void*                   message_ptr COMMA()
                 FILE_AND_LINE_FOR_TYPE());
 
-/*
-func_ptr* zajel_get_registration_lut_pointer(zajel* cfw);
-void zajel_init(zajel_s*        zajel_ptr COMMA()
-                FILE_AND_LINE_FOR_TYPE());//developer
-*/
+
 #endif /* ZAJEL_H_ */
