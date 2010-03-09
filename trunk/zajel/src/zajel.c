@@ -64,6 +64,72 @@
  *  Returns     : boolean.
  **************************************************************************************************/
 #define ZAJEL_IS_ITEM_REGISTERED(item) ((item).isRegistered)
+
+/***************************************************************************************************
+ *  Macro Name  : ZAJEL_THREAD_PERFORM_SYNCHRONIZATION
+ *
+ *  Arguments   : controlBlock_ptr, desc_ptr
+ *
+ *  Description : This macro locks the calling thread if required by the message.
+ *
+ *  Returns     : None.
+ **************************************************************************************************/
+#define ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(controlBlock_ptr, desc_ptr)                           \
+{                                                                                                  \
+    if(descriptor_ptr->isSynchronous)                                                              \
+    {                                                                                              \
+        /*<Message is synchronous, framework will now block the calling thread>*/                  \
+        zajel_component_information_u*  sourceComponent_ptr;                                       \
+        zajel_thread_information_s*     sourceThread_ptr;                                          \
+                                                                                                   \
+        sourceComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->sourceComponentID];\
+        sourceThread_ptr    =  &(controlBlock_ptr)->threadInformationArray[sourceComponent_ptr->parameters.threadID];\
+                                                                                                   \
+        sourceThread_ptr->blockCallerThreadCallback(sourceThread_ptr->blockCallerThreadCallbackArgument);\
+    } /*if: <Message is synchronous, framework will now block the calling thread>*/                \
+}
+
+/***************************************************************************************************
+ *  Macro Name  : ZAJEL_THREAD_HANDLE_MESSAGE
+ *
+ *  Arguments   : controlBlock_ptr, desc_ptr
+ *
+ *  Description : This macro deliver the given message (descriptor) to the given thread.
+ *
+ *  Returns     : None.
+ **************************************************************************************************/
+#define ZAJEL_THREAD_HANDLE_MESSAGE(controlBlock_ptr, desc_ptr)                                    \
+{                                                                                                  \
+    zajel_component_information_u*  destinationComponent_ptr;                                      \
+    zajel_thread_information_s*     destinationThread_ptr;                                         \
+                                                                                                   \
+    destinationComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->destinationComponentID];\
+    destinationThread_ptr    =  &(controlBlock_ptr)->threadInformationArray[destinationComponent_ptr->parameters.threadID];\
+                                                                                                   \
+    destinationThread_ptr->handleMessageCallback((desc_ptr));                                      \
+}
+
+/***************************************************************************************************
+ *  Macro Name  : ZAJEL_CORE_HANDLE_MESSAGE
+ *
+ *  Arguments   : controlBlock_ptr, desc_ptr
+ *
+ *  Description : This macro deliver the given message (descriptor) to the given core.
+ *
+ *  Returns     : None.
+ **************************************************************************************************/
+#define ZAJEL_CORE_HANDLE_MESSAGE(controlBlock_ptr, desc_ptr)                                      \
+{                                                                                                  \
+    zajel_component_information_u*  destinationComponent_ptr;                                      \
+    zajel_core_information_s*       destinationCore_ptr;                                           \
+                                                                                                   \
+    destinationComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->destinationComponentID];\
+    destinationCore_ptr      =  &(controlBlock_ptr)->coreInformationArray[destinationComponent_ptr->parameters.coreID];\
+                                                                                                   \
+    destinationCore_ptr->handleMessageCallback((desc_ptr));                                        \
+}
+
+
 /***************************************************************************************************
  *
  *  T Y P E S
@@ -162,18 +228,27 @@ typedef union zajel_component_information
 typedef struct zajel_thread_information
 {
     /*Core identifier on which this thread runs*/
-    uint32_t                            coreID;
-    /*This call back function is used to deliver synchronous messages to the thread*/
-    zajel_thread_blocking_callback      blockingCallback;
-    /*This call back function is used to deliver asynchronous messages to the thread*/
-    zajel_thread_non_blocking_callback  nonblockingCallback;
+    uint32_t                                coreID;
+    /*This callback function is used to deliver the messages to the thread*/
+    zajel_thread_handle_message_callback    handleMessageCallback;
+    /*
+     * This can be any synchronization primitive passed by the framework to the blockFunction in order
+     * to support synchronous messages
+     */
+    void*                                   blockCallerThreadCallbackArgument;
+    /*
+     * This function will be called by the framework with the blockData as argument to block the
+     * sender thread until the received thread finishes.
+     */
+    zajel_thread_block_caller_callback      blockCallerThreadCallback;
+
 #ifdef DEBUG
     /*TRUE if the thread is registered*/
-    bool_t                              isRegistered;
+    bool_t                                  isRegistered;
     /*Thread identifier, this is meant to be user-assigned rather than the OS-assigned*/
-    uint32_t                            threadID;
+    uint32_t                                threadID;
     /*Thread textual name, to be used for debugging*/
-    char*                               threadName_ptr;
+    char*                                   threadName_ptr;
 #endif /*DEBUG*/
 } zajel_thread_information_s;
 
@@ -186,10 +261,8 @@ typedef struct zajel_thread_information
  **************************************************************************************************/
 typedef struct zajel_core_information
 {
-    /*This call back function is used to deliver synchronous messages to the core*/
-    zajel_core_blocking_callback        blockingCallback;
-    /*This call back function is used to deliver asynchronous messages to the core*/
-    zajel_core_non_blocking_callback    nonblockingCallback;
+    /*This call back function is used to deliver messages to the destination core*/
+    zajel_core_handle_message_callback  handleMessageCallback;
 #ifdef DEBUG
     /*core identifier, this is meant to be user-assigned rather than the OS-assigned*/
     uint32_t                            coreID;
@@ -473,8 +546,9 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
 void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
                            uint32_t                             threadID,
                            uint32_t                             coreID,
-                           zajel_thread_blocking_callback       blockingCallback,
-                           zajel_thread_non_blocking_callback   nonblockingCallback,
+                           zajel_thread_handle_message_callback handleMessageCallback,
+                           zajel_thread_block_caller_callback   blockCallerCallback,
+                           void*                                blockCallerCallbackArgument,
                            char*                                threadName_Ptr COMMA()
                            FILE_AND_LINE_FOR_TYPE())
 {
@@ -505,19 +579,20 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
            "zajel: thread is already registered!",
            fileName,
            lineNumber);
-    ASSERT((NULL != blockingCallback),
-           "zajel: blockingCallback cannot be NULL!",
+    ASSERT((NULL != handleMessageCallback),
+           "zajel: handleMessageCallback cannot be NULL!",
            fileName,
            lineNumber);
-    ASSERT((NULL != nonblockingCallback),
-           "zajel: nonblockingCallback cannot be NULL!",
+    ASSERT((NULL != blockCallerCallback),
+           "zajel: blockCallerCallback cannot be NULL!",
            fileName,
            lineNumber);
 
 
-    zajel_ptr->threadInformationArray[threadID].coreID              = coreID;
-    zajel_ptr->threadInformationArray[threadID].blockingCallback    = blockingCallback;
-    zajel_ptr->threadInformationArray[threadID].nonblockingCallback = nonblockingCallback;
+    zajel_ptr->threadInformationArray[threadID].coreID                              = coreID;
+    zajel_ptr->threadInformationArray[threadID].handleMessageCallback               = handleMessageCallback;
+    zajel_ptr->threadInformationArray[threadID].blockCallerThreadCallback           = blockCallerCallback;
+    zajel_ptr->threadInformationArray[threadID].blockCallerThreadCallbackArgument   = blockCallerCallbackArgument;
 
 #ifdef DEBUG
     zajel_ptr->threadInformationArray[threadID].threadName_ptr      = threadName_Ptr;
@@ -528,6 +603,7 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
 
 void zajel_regsiter_core(zajel_s*                           zajel_ptr,
                          uint32_t                           coreID,
+                         zajel_core_handle_message_callback handleMessageCallback,
                          char*                              coreName_Ptr COMMA()
                          FILE_AND_LINE_FOR_TYPE())
 {
@@ -554,26 +630,58 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
            "zajel: Core is already registered!",
            fileName,
            lineNumber);
+    ASSERT((NULL != handleMessageCallback),
+           "zajel: handleMessageCallback cannot be NULL!",
+           fileName,
+           lineNumber);
+
+    zajel_ptr->coreInformationArray[coreID].handleMessageCallback   = handleMessageCallback;
+
 
 #ifdef DEBUG
-    zajel_ptr->coreInformationArray[coreID].coreName_ptr        = coreName_Ptr;
-    zajel_ptr->coreInformationArray[coreID].isRegistered        = TRUE;
-    zajel_ptr->coreInformationArray[coreID].coreID              = coreID;
+    zajel_ptr->coreInformationArray[coreID].coreName_ptr            = coreName_Ptr;
+    zajel_ptr->coreInformationArray[coreID].isRegistered            = TRUE;
+    zajel_ptr->coreInformationArray[coreID].coreID                  = coreID;
 #endif /*DEBUG*/
 }
 
 void zajel_send(zajel_s*                zajel_ptr,
-                uint32_t                sourceComponentID,
-                uint32_t                destinationComponentID,
-                uint32_t                messageID,
-                zajel_delivery_type_e   deliveryType,
                 void*                   message_ptr COMMA()
                 FILE_AND_LINE_FOR_TYPE())
 {
-    zajel_component_dynamic_relation_e dynamicRelation;
+    zajel_message_descriptor_s*         descriptor_ptr;
+    zajel_component_dynamic_relation_e  dynamicRelation;
 
-    dynamicRelation = zajel_get_component_dynamic_relation(sourceComponentID,
-                                                           destinationComponentID);
+    descriptor_ptr = (zajel_message_descriptor_s*) message_ptr;
+
+    ASSERT((NULL != zajel_ptr),
+           "zajel: Invalid control block pointer!",
+           fileName,
+           lineNumber);
+    ASSERT((NULL != message_ptr),
+           "zajel: message_cannot equal NULL!",
+           fileName,
+           lineNumber);
+    ASSERT((descriptor_ptr->messageID < ZAJEL_MESSAGE_COUNT),
+           "zajel: Message ID is greater than the supported message count!",
+           fileName,
+           lineNumber);
+    ASSERT((descriptor_ptr->sourceComponentID < ZAJEL_COMPONENT_COUNT),
+           "zajel: Source component ID is greater than the supported message count!",
+           fileName,
+           lineNumber);
+    ASSERT((descriptor_ptr->destinationComponentID < ZAJEL_COMPONENT_COUNT),
+           "zajel: Destination component ID is greater than the supported message count!",
+           fileName,
+           lineNumber);
+    ASSERT(((TRUE == descriptor_ptr->isSynchronous) || (FALSE == descriptor_ptr->isSynchronous)),
+           "zajel: isSynchronous is niether true nor false!",
+           fileName,
+           lineNumber);
+
+
+    dynamicRelation = zajel_get_component_dynamic_relation(descriptor_ptr->sourceComponentID,
+                                                           descriptor_ptr->destinationComponentID);
 
     switch(dynamicRelation)
     {
@@ -582,34 +690,38 @@ void zajel_send(zajel_s*                zajel_ptr,
         case ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_THREAD:
             /*<Both components are running in the same thread>*/
 
-            switch(deliveryType)
+            if(descriptor_ptr->isSynchronous)
             {
-                /*<Checks the requested delivery type and act>*/
-
-                case ZAJEL_DELIVERY_TYPE_SYNCHRONOUS:
-                    /*<Sender will not proceed (will be blocked) until the receiver finishes>*/
-
-                    break;/*<Sender will not proceed (blocked) until the receiver finishes>*/
-                case ZAJEL_DELIVERY_TYPE_ASYNCHRONOUS:
-                    /*<Sender will continue independent of the receiver >*/
-
-                    break; /*<Sender will continue independent of the receiver>*/
-                default:
-                    /*<Invalid delivery type requested>*/
-                    ASSERT((FALSE),
-                           "zajel: Invalid delivery type requested!",
-                           fileName,
-                           lineNumber);
-                    break;/*<Invalid delivery type requested>*/
-            } /*switch: <Checks the requested delivery type and act>*/
+                /*<Synchronous message, call the handler directly>*/
+                zajel_ptr->messageInformationArray[descriptor_ptr->messageID].messageHandlerFunction(descriptor_ptr);
+            } /*if: <Synchronous message, call the handler directly>*/
+            else
+            {
+                /*<Asynchronous message, deliver the message to the destination thread>*/
+                ZAJEL_THREAD_HANDLE_MESSAGE(zajel_ptr,
+                                            descriptor_ptr);
+            } /*else: <Asynchronous message, deliver the message to the destination thread>*/
 
             break;/*<Both components are running in the same thread>*/
         case ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_THREADS:
             /*<Both components are running in different threads, same core>*/
 
+            ZAJEL_THREAD_HANDLE_MESSAGE(zajel_ptr,
+                                        descriptor_ptr);
+
+            ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
+                                                 descriptor_ptr);
+
+
             break;/*<Both components are running in different threads, same core>*/
         case ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_CORES:
             /*<Both components are running in different threads, different cores>*/
+
+            ZAJEL_CORE_HANDLE_MESSAGE(zajel_ptr,
+                                      descriptor_ptr);
+
+            ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
+                                                 descriptor_ptr);
 
             break;/*<Both components are running in different threads, different cores>*/
         default:
