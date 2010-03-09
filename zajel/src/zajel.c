@@ -59,48 +59,48 @@
  *
  *  Arguments   : item
  *
- *  Description : This macro can be used to set/get the registeration status of the given item.
+ *  Description : This macro can be used to set/get the registration status of the given item.
  *
  *  Returns     : boolean.
  **************************************************************************************************/
 #define ZAJEL_IS_ITEM_REGISTERED(item) ((item).isRegistered)
 
 /***************************************************************************************************
- *  Macro Name  : ZAJEL_THREAD_PERFORM_SYNCHRONIZATION
+ *  Macro Name  : ZAJEL_THREAD_SYNCHRONIZE
  *
- *  Arguments   : controlBlock_ptr, desc_ptr
+ *  Arguments   : cfw_ptr, desc_ptr, action
  *
  *  Description : This macro locks the calling thread.
  *
  *  Returns     : None.
  **************************************************************************************************/
-#define ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(controlBlock_ptr, desc_ptr)                           \
+#define ZAJEL_THREAD_SYNCHRONIZE(cfw_ptr, desc_ptr, action)                                        \
 {                                                                                                  \
     zajel_component_information_u*  sourceComponent_ptr;                                           \
     zajel_thread_information_s*     sourceThread_ptr;                                              \
                                                                                                    \
-    sourceComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->sourceComponentID];\
-    sourceThread_ptr    =  &(controlBlock_ptr)->threadInformationArray[sourceComponent_ptr->parameters.threadID];\
+    sourceComponent_ptr =  &(cfw_ptr)->componentInformationArray[(desc_ptr)->sourceComponentID];\
+    sourceThread_ptr    =  &(cfw_ptr)->threadInformationArray[sourceComponent_ptr->parameters.threadID];\
                                                                                                    \
-    sourceThread_ptr->blockCallback(sourceThread_ptr->synchronizationPrimitive_ptr);               \
+    sourceThread_ptr->action##Callback(sourceThread_ptr->synchronizationPrimitive_ptr);            \
 }
 
 /***************************************************************************************************
  *  Macro Name  : ZAJEL_THREAD_HANDLE_MESSAGE
  *
- *  Arguments   : controlBlock_ptr, desc_ptr
+ *  Arguments   : cfw_ptr, desc_ptr
  *
  *  Description : This macro deliver the given message (descriptor) to the given thread.
  *
  *  Returns     : None.
  **************************************************************************************************/
-#define ZAJEL_THREAD_HANDLE_MESSAGE(controlBlock_ptr, desc_ptr)                                    \
+#define ZAJEL_THREAD_HANDLE_MESSAGE(cfw_ptr, desc_ptr)                                             \
 {                                                                                                  \
     zajel_component_information_u*  destinationComponent_ptr;                                      \
     zajel_thread_information_s*     destinationThread_ptr;                                         \
                                                                                                    \
-    destinationComponent_ptr =  &(controlBlock_ptr)->componentInformationArray[(desc_ptr)->destinationComponentID];\
-    destinationThread_ptr    =  &(controlBlock_ptr)->threadInformationArray[destinationComponent_ptr->parameters.threadID];\
+    destinationComponent_ptr =  &(cfw_ptr)->componentInformationArray[(desc_ptr)->destinationComponentID];\
+    destinationThread_ptr    =  &(cfw_ptr)->threadInformationArray[destinationComponent_ptr->parameters.threadID];\
                                                                                                    \
     destinationThread_ptr->handleMessageCallback((desc_ptr));                                      \
 }
@@ -144,7 +144,7 @@ typedef enum zajel_component_dynamic_relation
     /*Both components are running on the same thread, on the same core*/
     ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_THREAD        = 0,
     /*Both components are running on different threads, on the same core*/
-    ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_THREADS  = 1,
+    ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_CORE          = 1,
     /*Both components are running on different threads, on different cores*/
     ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_CORES    = 2
 } zajel_component_dynamic_relation_e;
@@ -164,7 +164,7 @@ typedef struct zajel_message_information
     /*TRUE if the message is registered*/
     bool_t                          isRegistered;
     /*Message identifier*/
-    uint32_t                        messageID;
+    message_id                      messageID;
     /*Textual representation of the message, for debugging purposes*/
     char*                           messageName_ptr;
 #endif /*DEBUG*/
@@ -183,8 +183,10 @@ typedef struct zajel_component_information_parameters
     uint8_t threadID;
     /*Core identifier on which the component runs, support up to 256 different core*/
     uint8_t coreID;
-    /*Configuration and status bitmap*/
-    uint8_t bitmapByte;
+    /*for padding*/
+    uint8_t reserved1;
+    /*for padding*/
+    uint8_t reserved2;
 #ifdef DEBUG
     /*TRUE if the component is registered*/
     bool_t  isRegistered;
@@ -310,15 +312,17 @@ struct zajel
 /***************************************************************************************************
  *  Name        : zajel_get_component_dynamic_relation
  *
- *  Arguments   : uint32_t sourceComponentID,
- *                uint32_t destinationComponentID
+ *  Arguments   : zajel_s*    zajel_ptr
+ *                uint32_t    sourceComponentID,
+ *                uint32_t    destinationComponentID
  *
  *  Description : Determines the dynamic relation between the two given component.
  *
  *  Returns     : zajel_component_dynamic_relation_e.
  **************************************************************************************************/
-zajel_component_dynamic_relation_e zajel_get_component_dynamic_relation(uint32_t sourceComponentID,
-                                                                        uint32_t destinationComponentID);
+zajel_component_dynamic_relation_e zajel_get_component_dynamic_relation(zajel_s*    zajel_ptr,
+                                                                        uint32_t    sourceComponentID,
+                                                                        uint32_t    destinationComponentID);
 
 
 /***************************************************************************************************
@@ -482,6 +486,10 @@ void zajel_regsiter_message(zajel_s*                        zajel_ptr,
            lineNumber);
     ASSERT((messageID < ZAJEL_MESSAGE_COUNT),
            "zajel: MessageID passed must be less than the total message count used during initialization!",
+           fileName,
+           lineNumber);
+    ASSERT((messageID),
+           "zajel: Zero cannot be used as a message ID, as it is reserved by the framework for acknowledge!",
            fileName,
            lineNumber);
     ASSERT((NULL != messageHandler_ptr),
@@ -677,6 +685,10 @@ void zajel_send(zajel_s*                zajel_ptr,
            "zajel: Message ID is greater than the supported message count!",
            fileName,
            lineNumber);
+    ASSERT((descriptor_ptr->messageID),
+           "zajel: Zero cannot be used as a message ID, as it is reserved by the framework for acknowledge!",
+           fileName,
+           lineNumber);
     ASSERT((descriptor_ptr->sourceComponentID < ZAJEL_COMPONENT_COUNT),
            "zajel: Source component ID is greater than the supported message count!",
            fileName,
@@ -691,7 +703,8 @@ void zajel_send(zajel_s*                zajel_ptr,
            lineNumber);
 
 
-    dynamicRelation = zajel_get_component_dynamic_relation(descriptor_ptr->sourceComponentID,
+    dynamicRelation = zajel_get_component_dynamic_relation(zajel_ptr,
+                                                           descriptor_ptr->sourceComponentID,
                                                            descriptor_ptr->destinationComponentID);
 
     switch(dynamicRelation)
@@ -714,7 +727,7 @@ void zajel_send(zajel_s*                zajel_ptr,
             } /*else: <Asynchronous message, deliver the message to the destination thread>*/
 
             break;/*<Both components are running in the same thread>*/
-        case ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_THREADS:
+        case ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_CORE:
             /*<Both components are running in different threads, same core>*/
 
             ZAJEL_THREAD_HANDLE_MESSAGE(zajel_ptr,
@@ -723,8 +736,9 @@ void zajel_send(zajel_s*                zajel_ptr,
             if(descriptor_ptr->isSynchronous)
             {
                 /*<Message is synchronous, framework will now block the calling thread>*/
-                ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
-                                                     descriptor_ptr);
+                ZAJEL_THREAD_SYNCHRONIZE(zajel_ptr,
+                                         descriptor_ptr,
+                                         block);
             } /*if: <Message is synchronous, framework will now block the calling thread>*/
 
 
@@ -739,9 +753,113 @@ void zajel_send(zajel_s*                zajel_ptr,
             if(descriptor_ptr->isSynchronous)
             {
                 /*<Message is synchronous, framework will now block the calling thread>*/
-                ZAJEL_THREAD_PERFORM_SYNCHRONIZATION(zajel_ptr,
-                                                     descriptor_ptr);
+                ZAJEL_THREAD_SYNCHRONIZE(zajel_ptr,
+                                         descriptor_ptr,
+                                         block);
             } /*if: <Message is synchronous, framework will now block the calling thread>*/
+
+            break;/*<Both components are running in different threads, different cores>*/
+        default:
+            /*<Invalid dynamic relation>*/
+            ASSERT((FALSE),
+                   "zajel: Invalid dynamic relation received!",
+                   fileName,
+                   lineNumber);
+            break;/*<Invalid dynamic relation>*/
+    } /*switch: <This switch checks the dynamic relation between both components and act accordingly>*/
+}
+
+void zajel_ack(zajel_s*                zajel_ptr,
+               void*                   message_ptr COMMA()
+               FILE_AND_LINE_FOR_TYPE())
+{
+    zajel_message_descriptor_s          ackDescriptor;
+    zajel_message_descriptor_s*         descriptor_ptr;
+    zajel_component_dynamic_relation_e  dynamicRelation;
+
+    descriptor_ptr = (zajel_message_descriptor_s*) message_ptr;
+
+    ASSERT((NULL != zajel_ptr),
+           "zajel: Invalid control block pointer!",
+           fileName,
+           lineNumber);
+    ASSERT((NULL != message_ptr),
+           "zajel: message_cannot equal NULL!",
+           fileName,
+           lineNumber);
+    ASSERT((descriptor_ptr->messageID < ZAJEL_MESSAGE_COUNT),
+           "zajel: Message ID is greater than the supported message count!",
+           fileName,
+           lineNumber);
+    ASSERT((descriptor_ptr->messageID),
+           "zajel: Zero cannot be used as a message ID, as it is reserved by the framework for acknowledge!",
+           fileName,
+           lineNumber);
+    ASSERT((descriptor_ptr->sourceComponentID < ZAJEL_COMPONENT_COUNT),
+           "zajel: Source component ID is greater than the supported message count!",
+           fileName,
+           lineNumber);
+    ASSERT((descriptor_ptr->destinationComponentID < ZAJEL_COMPONENT_COUNT),
+           "zajel: Destination component ID is greater than the supported message count!",
+           fileName,
+           lineNumber);
+    ASSERT(((TRUE == descriptor_ptr->isSynchronous) || (FALSE == descriptor_ptr->isSynchronous)),
+           "zajel: isSynchronous is neither true nor false!",
+           fileName,
+           lineNumber);
+
+
+    dynamicRelation = zajel_get_component_dynamic_relation(zajel_ptr,
+                                                           descriptor_ptr->sourceComponentID,
+                                                           descriptor_ptr->destinationComponentID);
+
+    switch(dynamicRelation)
+    {
+        /*<This switch checks the dynamic relation between both components and act accordingly>*/
+
+        case ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_THREAD:
+            /*<Both components are running in the same thread>*/
+
+            ASSERT((TRUE == descriptor_ptr->isSynchronous),
+                   "zajel: It is not allowed to acknowledge asynchronous message!",
+                   fileName,
+                   lineNumber);
+            ASSERT((FALSE),
+                   "zajel: It is not allowed to ack a message sent from the same thread!",
+                   fileName,
+                   lineNumber);
+
+            break;/*<Both components are running in the same thread>*/
+        case ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_CORE:
+            /*<Both components are running in different threads, same core>*/
+
+            ASSERT((TRUE == descriptor_ptr->isSynchronous),
+                   "zajel: It is not allowed to acknowledge asynchronous message!",
+                   fileName,
+                   lineNumber);
+
+            ZAJEL_THREAD_SYNCHRONIZE(zajel_ptr,
+                                     descriptor_ptr,
+                                     unblock);
+
+            break;/*<Both components are running in different threads, same core>*/
+        case ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_CORES:
+            /*<Both components are running in different threads, different cores>*/
+
+            ASSERT((TRUE == descriptor_ptr->isSynchronous),
+                   "zajel: It is not allowed to acknowledge asynchronous message!",
+                   fileName,
+                   lineNumber);
+
+            /*Adjusting the message parameter so that it is delivered to the original source*/
+            ackDescriptor.messageID                 = ZAJEL_ACK_MESSAGE_ID;
+            ackDescriptor.sourceComponentID         = descriptor_ptr->destinationComponentID;
+            ackDescriptor.destinationComponentID    = descriptor_ptr->sourceComponentID;
+            ackDescriptor.isSynchronous             = descriptor_ptr->isSynchronous;
+
+            zajel_send(zajel_ptr,
+                       (void*)&ackDescriptor COMMA()
+                       FILE_AND_LINE_FOR_CALL());
 
             break;/*<Both components are running in different threads, different cores>*/
         default:
@@ -762,13 +880,22 @@ void zajel_send(zajel_s*                zajel_ptr,
  **************************************************************************************************/
 
 
-zajel_component_dynamic_relation_e zajel_get_component_dynamic_relation(uint32_t sourceComponentID,
-                                                                        uint32_t destinationComponentID)
+zajel_component_dynamic_relation_e zajel_get_component_dynamic_relation(zajel_s*    zajel_ptr,
+                                                                        uint32_t    sourceComponentID,
+                                                                        uint32_t    destinationComponentID)
 {
+    zajel_component_information_u decision;
     /*
      * FIXME: mgalal on Mar 6, 2010
      *
      * Needs to be fixed according to the discussion with Karim.
      */
-    return ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_THREAD;
+
+    decision.handle =   zajel_ptr->componentInformationArray[sourceComponentID].handle ^
+                        zajel_ptr->componentInformationArray[destinationComponentID].handle;
+
+    return ((!decision.parameters.threadID) ?   (ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_THREAD) :
+            (!decision.parameters.coreID)   ?   (ZAJEL_COMPONENT_DYNAMIC_RELATION_SAME_CORE) :
+                                                (ZAJEL_COMPONENT_DYNAMIC_RELATION_DIFFERENT_CORES));
+
 }

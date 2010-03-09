@@ -44,13 +44,15 @@
  */
 #define DEBUG 1
 
+/*This message is reserved for inter-core synchronous message synchronization*/
+#define ZAJEL_ACK_MESSAGE_ID            (0)
 
 #ifndef FALSE
-#define FALSE                           0
+#define FALSE                           (0)
 #endif
 
 #ifndef TRUE
-#define TRUE                            1
+#define TRUE                            (1)
 #endif
 
 #ifndef INLINE
@@ -113,6 +115,9 @@ typedef struct zajel zajel_s;
 /*boolean type*/
 typedef uint8_t bool_t;
 
+/*Supports up to 255 unique message id (0 is reserved for ack). In case more messages are needed,
+ * a bigger type (short, long) can be used instead of byte*/
+typedef uint8_t message_id;
 
 /***************************************************************************************************
  * Enumeration Name:
@@ -138,7 +143,7 @@ typedef enum zajel_status
 typedef struct zajel_message_descriptor
 {
     /*Message Identifier*/
-    uint8_t    messageID;
+    message_id messageID;
     /*Sender component identifier */
     uint8_t    sourceComponentID;
     /*Receiver component identifier*/
@@ -180,11 +185,13 @@ typedef void (*zajel_handle_message_callback) (zajel_message_descriptor_s*);
 /*Called by the framework so that the receiver core handle the given message*/
 typedef void (*zajel_core_handle_message_callback) (zajel_message_descriptor_s*);
 
+
 /***************************************************************************************************
  *
  *  I N T E R F A C E   F U N C T I O N   D E C L A R A T I O N S
  *
  **************************************************************************************************/
+
 
 /***************************************************************************************************
  *  Name        : zajel_init
@@ -225,7 +232,9 @@ void zajel_destroy(zajel_s** zajelPointer_ptr COMMA()
  *                char*                           messageName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
- *  Description : This function register a message to zajel framework.
+ *  Description : This function register a message to zajel framework. Only message handled by
+ *                  component running on a specific core needs to be registered to zajel instance
+ *                  running on the same core.
  *
  *  Returns     : void.
  **************************************************************************************************/
@@ -244,7 +253,8 @@ void zajel_regsiter_message(zajel_s*                        zajel_ptr,
  *                char*     componentName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
- *  Description : This function register a component to zajel framework.
+ *  Description : This function register a component to zajel framework. All system components needs
+ *                  to be registered on each core.
  *
  *  Returns     : void.
  **************************************************************************************************/
@@ -253,6 +263,7 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
                               uint32_t  threadID,
                               char*     componentName_Ptr COMMA()
                               FILE_AND_LINE_FOR_TYPE());
+
 /***************************************************************************************************
  *  Name        : zajel_regsiter_thread
  *
@@ -266,7 +277,8 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
  *                char*                            threadName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
- *  Description : This function register a thread to zajel framework.
+ *  Description : This function register a thread to zajel framework.All system threads needs
+ *                  to be registered on each core.
  *
  *  Returns     : void.
  **************************************************************************************************/
@@ -289,7 +301,8 @@ void zajel_regsiter_thread(zajel_s*                         zajel_ptr,
  *                char*                              coreName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
- *  Description : This function register a core to zajel framework.
+ *  Description : This function register a core to zajel framework. All system cores needs
+ *                  to be registered on each core.
  *
  *  Returns     : void.
  **************************************************************************************************/
@@ -322,5 +335,20 @@ void zajel_send(zajel_s*                zajel_ptr,
                 void*                   message_ptr COMMA()
                 FILE_AND_LINE_FOR_TYPE());
 
+/***************************************************************************************************
+ *  Name        : zajel_ack
+ *
+ *  Arguments   : zajel_s*                zajel_ptr,
+ *                void*                   message_ptr COMMA()
+ *                FILE_AND_LINE_FOR_TYPE()
+ *
+ *  Description : This function is used by the receiver thread to acknowledge the reception of a
+ *                  synchronous message.
+ *
+ *  Returns     : void.
+ **************************************************************************************************/
+void zajel_ack(zajel_s*                zajel_ptr,
+               void*                   message_ptr COMMA()
+               FILE_AND_LINE_FOR_TYPE());
 
 #endif /* ZAJEL_H_ */
