@@ -113,37 +113,6 @@ typedef struct zajel zajel_s;
 /*boolean type*/
 typedef uint8_t bool_t;
 
-/*Memory allocation function prototype*/
-typedef void*(*allocation_function)(size_t bytesCount);
-
-/*Memory de-allocation function prototype*/
-typedef void (*zajel_deallocation_function)(void* ptr);
-
-/*Locking function prototype*/
-typedef void (*lock_function)();
-
-/*Unlocking function prototype*/
-typedef void (*unlock_function)();
-
-/*Defines the prototypes of message handler functions*/
-typedef uint32_t (*zajel_message_handler_function) (void* message_ptr);
-
-/*
- * FIXME: mgalal on Mar 5, 2010
- *
- * The four callbacks below needs to have interface properly adjusted.
- */
-/*Defines the prototype of callback function used to deliver synchronous messages to a thread*/
-typedef void (*zajel_thread_blocking_callback) (void);
-
-/*Defines the prototype of callback function used to deliver asynchronous messages to a thread*/
-typedef void (*zajel_thread_non_blocking_callback) (void);
-
-/*Defines the prototype of callback function used to deliver synchronous messages to a core*/
-typedef void (*zajel_core_blocking_callback) (void);
-
-/*Defines the prototype of callback function used to deliver asynchronous messages to a core*/
-typedef void (*zajel_core_non_blocking_callback) (void);
 
 /***************************************************************************************************
  * Enumeration Name:
@@ -159,23 +128,51 @@ typedef enum zajel_status
 } zajel_status_e;
 
 /***************************************************************************************************
- * Enumeration Name:
- * zajel_delivery_type_e
+ * Structure Name:
+ * zajel_message_descriptor_s
  *
- * Enumeration Description:
- * Determines if the message delivery is synchronous or asynchronous.
+ * Structure Description:
+ * This structure shall be the first member in any message used by the framework, the framework will
+ * take care of filling it properly.
  **************************************************************************************************/
-typedef enum zajel_delivery_type
+typedef struct zajel_message_descriptor
 {
-    /*
-     * Sender will block after sending the message, until receiver finishes handling the message.
-     */
-    ZAJEL_DELIVERY_TYPE_SYNCHRONOUS   = 1,
-     /*
-      * Sender will not block after sending the message.
-      */
-    ZAJEL_DELIVERY_TYPE_ASYNCHRONOUS  = 2
-}zajel_delivery_type_e;
+    /*Message Identifier*/
+    uint8_t    messageID;
+    /*Sender component identifier */
+    uint8_t    sourceComponentID;
+    /*Receiver component identifier*/
+    uint8_t    destinationComponentID;
+    /*Shall message be sent synchronously (i.e. sender will wait for the receiver to finish before continuing)*/
+    bool_t     isSynchronous;
+} zajel_message_descriptor_s;
+
+/*Memory allocation function prototype*/
+typedef void*(*allocation_function)(size_t bytesCount);
+
+/*Memory de-allocation function prototype*/
+typedef void (*zajel_deallocation_function)(void* ptr);
+
+/*Locking function prototype*/
+typedef void (*lock_function)();
+
+/*Unlocking function prototype*/
+typedef void (*unlock_function)();
+
+/*Defines the prototypes of message handler functions*/
+typedef void (*zajel_message_handler_function) (zajel_message_descriptor_s*);
+
+/*
+ * A callback function when called, shall block the calling thread, and it is used for synchronous
+ * message delivery.
+ */
+typedef void (*zajel_thread_block_caller_callback) (void*);
+
+/*Called by the framework so that the receiver thread handle the given message*/
+typedef void (*zajel_thread_handle_message_callback) (zajel_message_descriptor_s*);
+
+/*Called by the framework so that the receiver core handle the given message*/
+typedef void (*zajel_core_handle_message_callback) (zajel_message_descriptor_s*);
 
 /***************************************************************************************************
  *
@@ -256,8 +253,9 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
  *  Arguments   : zajel_s*                             zajel_ptr,
  *                uint32_t                             threadID,
  *                uint32_t                             coreID,
- *                zajel_thread_blocking_callback       blockingCallback,
- *                zajel_thread_non_blocking_callback   nonblockingCallback,
+ *                zajel_thread_handle_message_callback handleMessageCallback,
+ *                zajel_thread_block_caller_callback   blockCallerThreadCallback,
+ *                void*                                blockCallerCallbackArgument,
  *                char*                                threadName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
@@ -268,8 +266,9 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
 void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
                            uint32_t                             threadID,
                            uint32_t                             coreID,
-                           zajel_thread_blocking_callback       blockingCallback,
-                           zajel_thread_non_blocking_callback   nonblockingCallback,
+                           zajel_thread_handle_message_callback handleMessageCallback,
+                           zajel_thread_block_caller_callback   blockCallerCallback,
+                           void*                                blockCallerCallbackArgument,
                            char*                                threadName_Ptr COMMA()
                            FILE_AND_LINE_FOR_TYPE());
 
@@ -278,6 +277,7 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
  *
  *  Arguments   : zajel_s*                           zajel_ptr,
  *                uint32_t                           coreID,
+ *                zajel_core_handle_message_callback handleMessageCallback,
  *                char*                              coreName_Ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
@@ -287,6 +287,7 @@ void zajel_regsiter_thread(zajel_s*                             zajel_ptr,
  **************************************************************************************************/
 void zajel_regsiter_core(zajel_s*                           zajel_ptr,
                          uint32_t                           coreID,
+                         zajel_core_handle_message_callback handleMessageCallback,
                          char*                              coreName_Ptr COMMA()
                          FILE_AND_LINE_FOR_TYPE());
 
@@ -300,10 +301,6 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
  *  Name        : zajel_send
  *
  *  Arguments   : zajel_s*                zajel_ptr,
- *                uint32_t                sourceComponentID,
- *                uint32_t                destinationComponentID,
- *                uint32_t                messageID,
- *                zajel_delivery_type_e   deliveryType,
  *                void*                   message_ptr COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
@@ -314,10 +311,6 @@ void zajel_regsiter_core(zajel_s*                           zajel_ptr,
  *  Returns     : void.
  **************************************************************************************************/
 void zajel_send(zajel_s*                zajel_ptr,
-                uint32_t                sourceComponentID,
-                uint32_t                destinationComponentID,
-                uint32_t                messageID,
-                zajel_delivery_type_e   deliveryType,
                 void*                   message_ptr COMMA()
                 FILE_AND_LINE_FOR_TYPE());
 
