@@ -354,8 +354,9 @@ void zajel_acknowledge(zajel_s* zajel_ptr,
 /***************************************************************************************************
  *  Name        : zajel_deliver
  *
- *  Arguments   : zajel_s*  zajel_ptr,
- *                void*     message_ptr COMMA()
+ *  Arguments   : zajel_s* zajel_ptr,
+ *                void*    message_ptr,
+ *                uint32_t callerThreadID COMMA()
  *                FILE_AND_LINE_FOR_TYPE()
  *
  *  Description : This function is used by the receiver core to deliver the received message
@@ -365,7 +366,8 @@ void zajel_acknowledge(zajel_s* zajel_ptr,
  *  Returns     : void.
  **************************************************************************************************/
 void zajel_deliver(zajel_s* zajel_ptr,
-                   void*    message_ptr COMMA()
+                   void*    message_ptr,
+                   uint32_t callerThreadID COMMA()
                    FILE_AND_LINE_FOR_TYPE());
 
 #endif /* ZAJEL_H_ */
