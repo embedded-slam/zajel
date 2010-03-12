@@ -593,6 +593,8 @@ void zajel_regsiter_component(zajel_s*  zajel_ptr,
            lineNumber);
 
     zajel_ptr->componentInformationArray[componentID].parameters.threadID           = threadID;
+    zajel_ptr->componentInformationArray[componentID].parameters.coreID             = ZAJEL_THREAD_GET_CORE_ID(zajel_ptr,
+                                                                                                               threadID);
 #ifdef DEBUG
     zajel_ptr->componentInformationArray[componentID].parameters.componentName_ptr  = componentName_Ptr;
     zajel_ptr->componentInformationArray[componentID].parameters.isRegistered       = TRUE;
